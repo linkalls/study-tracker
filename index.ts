@@ -1,11 +1,19 @@
 import { Elysia, t } from "elysia";
-import db from './db'; // Assuming db.ts is in the same directory
+import { jwt } from '@elysiajs/jwt'; // Assume this would be installed
+import db from './db'; 
+
+const JWT_SECRET = process.env.JWT_SECRET || 'MY_SUPER_SECRET_JWT_KEY_12345!';
 
 const app = new Elysia()
   .decorate('db', db)
+  .use(jwt({ // 1. Configure JWT plugin
+    name: 'jwt', // Can be named anything, 'jwt' is common
+    secret: JWT_SECRET,
+    // Optional: Add expiration, e.g., exp: '7d'
+  }))
   .group('/auth', (group) =>
     group
-      .post('/register', async ({ db, body, set }) => {
+      .post('/register', async ({ db, body, set, jwt }) => { // 2. Add jwt to handler context
         const { username, password } = body;
 
         if (!username || !password) {
@@ -25,11 +33,20 @@ const app = new Elysia()
         const passwordHash = await Bun.password.hash(password);
         
         try {
-          db.run('INSERT INTO users (username, passwordHash) VALUES (?, ?)', [username, passwordHash]);
+          const insertUserQuery = db.query('INSERT INTO users (username, passwordHash) VALUES (?, ?) RETURNING id, username');
+          const user = insertUserQuery.get(username, passwordHash) as { id: number; username: string } | null;
+
+          if (!user) {
+            set.status = 500;
+            return { error: 'Failed to register user and retrieve details' };
+          }
+
+          // 3. Optionally, log in user by returning a JWT on registration
+          const token = await jwt.sign({ userId: user.id, username: user.username });
           set.status = 201; // Created
-          return { message: 'User registered successfully' };
-        } catch (error) {
-          console.error('Registration error:', error);
+          return { message: 'User registered successfully', token, user: { id: user.id, username: user.username } };
+        } catch (error: any) {
+          console.error('Registration error:', error.message);
           set.status = 500;
           return { error: 'An error occurred during registration' };
         }
@@ -39,7 +56,7 @@ const app = new Elysia()
           password: t.String(),
         }),
       })
-      .post('/login', async ({ db, body, set, cookie: { session_id } }) => { // Elysia automatically parses and provides cookies
+      .post('/login', async ({ db, body, set, jwt }) => { // 4. Update login, use jwt
         const { username, password } = body;
 
         if (!username || !password) {
@@ -62,46 +79,44 @@ const app = new Elysia()
           return { error: 'Invalid username or password' };
         }
 
-        // Simple in-memory session store (replace with a proper session store in production)
-        const sessionId = crypto.randomUUID();
-        // @ts-ignore
-        if (!app.decorator.sessions) {
-            // @ts-ignore
-            app.decorate('sessions', {});
-        }
-        // @ts-ignore
-        app.decorator.sessions[sessionId] = { userId: user.id, username: user.username };
+        // 5. Generate JWT
+        const token = await jwt.sign({ userId: user.id, username: user.username });
         
-        session_id.set({ // Set the cookie
-          value: sessionId,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
-          path: '/',
-          maxAge: 7 * 24 * 60 * 60, // 7 days
-        });
-
-        return { message: 'Login successful', user: { id: user.id, username: user.username } };
+        // 6. Return JWT in response body (remove cookie logic)
+        return { message: 'Login successful', token, user: { id: user.id, username: user.username } };
       }, {
         body: t.Object({
           username: t.String(),
           password: t.String(),
         }),
       })
-      .post('/logout', ({ cookie: { session_id }, set }) => {
-        // @ts-ignore
-        if (app.decorator.sessions && session_id.value && app.decorator.sessions[session_id.value]) {
-            // @ts-ignore
-            delete app.decorator.sessions[session_id.value];
-        }
-        session_id.remove(); // Clear the cookie
-        return { message: 'Logout successful' };
+      .post('/logout', () => { // 7. Update logout (becomes mostly client-side)
+        // No cookie to clear from server side for stateless JWT.
+        // Client should discard the token.
+        // Server-side blocklisting is an advanced topic not covered here.
+        return { message: 'Logout successful. Please discard your token.' };
       })
-      .derive(({ cookie: { session_id } }) => { // Middleware to derive user from session
-        // @ts-ignore
-        const session = app.decorator.sessions && session_id.value ? app.decorator.sessions[session_id.value] : null;
-        return {
-          currentUser: session ? { id: session.userId, username: session.username } : null,
-        };
+      .derive(async ({ headers, jwt, db }) => { // 8. Update middleware/guard
+        const authHeader = headers['authorization'];
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return { currentUser: null };
+        }
+        const token = authHeader.substring(7); // Remove "Bearer "
+        
+        try {
+          const payload = await jwt.verify(token) as { userId: number; username: string; iat?: number; exp?: number };
+          if (!payload || !payload.userId) {
+            return { currentUser: null };
+          }
+          // Optionally re-fetch user from DB to ensure they still exist/are active
+          const userQuery = db.query('SELECT id, username FROM users WHERE id = ?');
+          const user = userQuery.get(payload.userId) as {id: number; username: string} | null;
+          
+          return { currentUser: user };
+        } catch (error) { // Token verification failed (invalid, expired, etc.)
+          console.warn('JWT verification failed:', error);
+          return { currentUser: null };
+        }
       })
       .get('/me', ({ currentUser, set }) => {
         if (!currentUser) {

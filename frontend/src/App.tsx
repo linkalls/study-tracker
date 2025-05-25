@@ -2,118 +2,200 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import PomodoroTimer, { PomodoroTimerProps } from './components/PomodoroTimer';
 import StudyLogger from './components/StudyLogger';
-import StudyHistory from './components/StudyHistory'; // Import the new component
-import { SessionData, getActiveSession, createSession, updateSession } from './services/sessionApi';
+import StudyHistory from './components/StudyHistory';
+// Updated imports for JWT auth
+import { 
+  SessionData, 
+  getActiveSession, 
+  createSession, 
+  updateSession,
+  getCurrentUser, // For auth check
+  loginUser,      // For dummy login/register UI
+  registerUser,   // For dummy login/register UI
+  logoutUser,     // For logout button
+  User
+} from './services/sessionApi';
 
 function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authChecked, setAuthChecked] = useState<boolean>(false); // To prevent rendering protected content before check
   const [activeStudySession, setActiveStudySession] = useState<SessionData | null>(null);
-  // currentTaskDescription is primarily managed by StudyLogger now, but App needs it if Pomodoro starts a session.
-  // Let's simplify: StudyLogger will provide the task description when it starts a session.
-  // Pomodoro starting a session will only happen if a task has been set in StudyLogger.
   const [appError, setAppError] = useState<string | null>(null);
   const [taskForNextSession, setTaskForNextSession] = useState<string>('');
 
-
-  // Fetch active session on mount
-  useEffect(() => {
-    const fetchSession = async () => {
+  // --- Authentication State Management ---
+  const checkAuthStatus = useCallback(async () => {
+    const token = localStorage.getItem('jwtToken');
+    if (token) {
       try {
-        setAppError(null);
-        const { session } = await getActiveSession();
-        setActiveStudySession(session);
-        if (session?.task_description) {
-          setCurrentTaskDescription(session.task_description);
-        }
-      } catch (error: any) {
-        console.error("Failed to fetch active session:", error);
-        setAppError("Could not load active session. You might be offline or need to log in.");
-        // If 401, redirect to login or show login prompt, not handled in this scope
+        const { user } = await getCurrentUser(); // This will use the token from localStorage via fetchApi
+        setCurrentUser(user);
+        if (!user) localStorage.removeItem('jwtToken'); // Backend says token invalid
+      } catch (error) {
+        console.error("Auth check failed:", error);
+        localStorage.removeItem('jwtToken'); // Clear token on any error during /me
+        setCurrentUser(null);
       }
-    };
-    fetchSession();
+    } else {
+      setCurrentUser(null);
+    }
+    setAuthChecked(true);
   }, []);
 
-  const handleStudySessionStart = useCallback(async (session: SessionData) => {
+  useEffect(() => {
+    checkAuthStatus();
+  }, [checkAuthStatus]);
+
+  // --- Study Session Management (depends on currentUser) ---
+  useEffect(() => {
+    if (currentUser) { // Only fetch sessions if user is authenticated
+      const fetchCurrentStudySession = async () => {
+        try {
+          setAppError(null);
+          const { session } = await getActiveSession();
+          setActiveStudySession(session);
+        } catch (error: any) {
+          console.error("Failed to fetch active study session:", error);
+          // setAppError("Could not load active study session."); // Avoid overriding auth errors
+        }
+      };
+      fetchCurrentStudySession();
+    } else {
+      setActiveStudySession(null); // Clear session if user logs out
+    }
+  }, [currentUser]); // Re-fetch active session if user changes
+
+  const handleStudySessionStart = useCallback(async (session: SessionData, taskDescription: string) => {
     setActiveStudySession(session);
-    if (session.task_description) setCurrentTaskDescription(session.task_description);
+    setTaskForNextSession(taskDescription); // Keep task description for potential re-use or if Pomodoro starts next
     setAppError(null);
   }, []);
 
   const handleStudySessionEnd = useCallback(async (updatedSession: SessionData | null) => {
-    // If updatedSession is null, it means StudyLogger initiated end without Pomodoro interaction
-    // If PomodoroTimer calls stop, it will pass the date, then StudyLogger handles UI
-    if (updatedSession) {
-      console.log('Study session ended and updated:', updatedSession);
-    } else {
-       console.log('Study session ended.');
-    }
     setActiveStudySession(null);
-    // setCurrentTaskDescription(''); // Keep task description for potential new session
+    // setTaskForNextSession(''); // Decide if task should clear when session ends
     setAppError(null);
+    console.log('Study session ended. Updated session data (if any):', updatedSession);
   }, []);
 
-
-  // Callbacks for PomodoroTimer
   const handlePomodoroWorkStart = useCallback(async (startTime: Date) => {
+    if (!currentUser) return; // Should not happen if UI hides timer for logged out users
     console.log('Pomodoro work started at:', startTime);
-    if (!activeStudySession && taskForNextSession.trim()) { 
+    if (!activeStudySession && taskForNextSession.trim()) {
       try {
         setAppError(null);
         const { session: newSession } = await createSession(startTime.toISOString(), taskForNextSession);
         setActiveStudySession(newSession);
-        // setTaskForNextSession(''); // Clear after use if desired, or let StudyLogger manage its input
-        console.log('New study session created by Pomodoro start:', newSession);
       } catch (error: any) {
         console.error("Failed to create session from Pomodoro:", error);
         setAppError(`Failed to start study session: ${error.message}`);
       }
-    } else if (activeStudySession) {
-      // console.log('Pomodoro work started, existing study session continues:', activeStudySession.id);
     }
-  }, [activeStudySession, taskForNextSession]);
+  }, [activeStudySession, taskForNextSession, currentUser]);
 
   const handlePomodoroWorkComplete = useCallback(() => {
+    if (!currentUser || !activeStudySession) return;
     console.log('Pomodoro work cycle complete.');
-    if (activeStudySession) {
-      setActiveStudySession(prevSession => {
-        if (!prevSession) return null;
-        const updatedCycles = (prevSession.pomodoro_cycles || 0) + 1;
-        console.log(`Incrementing pomodoros for session ${prevSession.id} to ${updatedCycles}`);
-        // This state update is local. Backend is updated when session fully ends.
-        return { ...prevSession, pomodoro_cycles: updatedCycles };
-      });
-    }
-  }, [activeStudySession]);
+    setActiveStudySession(prevSession => {
+      if (!prevSession) return null;
+      const updatedCycles = (prevSession.pomodoro_cycles || 0) + 1;
+      return { ...prevSession, pomodoro_cycles: updatedCycles };
+    });
+  }, [activeStudySession, currentUser]);
 
   const handlePomodoroStop = useCallback(async (stopTime: Date) => {
+    if (!currentUser || !activeStudySession) return;
     console.log('Pomodoro timer stopped at:', stopTime);
-    if (activeStudySession) {
+    try {
       setAppError(null);
-      try {
-        const duration_minutes = Math.round((stopTime.getTime() - new Date(activeStudySession.start_time).getTime()) / (1000 * 60));
-        const { session: updatedSessionData } = await updateSession(activeStudySession.id, {
-          end_time: stopTime.toISOString(),
-          duration_minutes: duration_minutes,
-          pomodoro_cycles: activeStudySession.pomodoro_cycles, // Send current cycle count
-          task_description: activeStudySession.task_description,
-        });
-        handleStudySessionEnd(updatedSessionData); // Use the callback to clear state
-      } catch (error: any) {
-        console.error("Failed to update session on Pomodoro stop:", error);
-        setAppError(`Failed to end study session: ${error.message}. Session may still be active on server.`);
-      }
+      const duration_minutes = Math.round((stopTime.getTime() - new Date(activeStudySession.start_time).getTime()) / (1000 * 60));
+      const { session: updatedSessionData } = await updateSession(activeStudySession.id, {
+        end_time: stopTime.toISOString(),
+        duration_minutes: duration_minutes,
+        pomodoro_cycles: activeStudySession.pomodoro_cycles,
+        task_description: activeStudySession.task_description,
+      });
+      handleStudySessionEnd(updatedSessionData);
+    } catch (error: any) {
+      console.error("Failed to update session on Pomodoro stop:", error);
+      setAppError(`Failed to end study session: ${error.message}.`);
     }
-  }, [activeStudySession, handleStudySessionEnd]);
+  }, [activeStudySession, handleStudySessionEnd, currentUser]);
 
+  // --- Dummy Auth UI Handlers ---
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAppError(null);
+    try {
+      await loginUser(usernameInput, passwordInput);
+      await checkAuthStatus(); // Re-check auth status to update UI
+      setUsernameInput('');
+      setPasswordInput('');
+    } catch (error: any) {
+      setAppError(error.message || "Login failed.");
+    }
+  };
+  
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAppError(null);
+    try {
+      await registerUser(usernameInput, passwordInput);
+      await checkAuthStatus(); // Re-check auth status (user will be logged in via token on register)
+      setUsernameInput('');
+      setPasswordInput('');
+    } catch (error: any) {
+      setAppError(error.message || "Registration failed.");
+    }
+  };
+
+  const handleLogout = async () => {
+    setAppError(null);
+    try {
+      await logoutUser();
+      setCurrentUser(null); // Immediately update UI
+      setActiveStudySession(null); // Clear active session on logout
+      setTaskForNextSession('');
+    } catch (error: any) {
+      setAppError(error.message || "Logout failed.");
+    }
+  };
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <p className="text-lg text-gray-700 dark:text-gray-300">Checking authentication...</p>
+        {/* Simple spinner */}
+        <div className="ml-3 w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
-    // Body background is set in index.css via @apply bg-gray-50 dark:bg-gray-900
     <div className="min-h-screen flex flex-col items-center p-4 pt-6 md:pt-10 selection:bg-blue-600 selection:text-white">
       <header className="mb-8 md:mb-10 text-center w-full">
-        <h1 className="text-4xl sm:text-5xl font-bold text-blue-600 dark:text-blue-400">FocusFlow</h1>
-        <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 mt-1.5">
-          Your Pomodoro Timer for Enhanced Productivity
-        </p>
+        <div className="flex justify-between items-center max-w-5xl mx-auto">
+          <h1 className="text-4xl sm:text-5xl font-bold text-blue-600 dark:text-blue-400">FocusFlow</h1>
+          {currentUser && (
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Hi, {currentUser.username}!</span>
+              <button 
+                onClick={handleLogout}
+                className="px-3 py-1.5 text-xs sm:text-sm bg-red-500 hover:bg-red-600 text-white rounded-md shadow-sm transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+        {!currentUser && (
+           <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 mt-1.5">
+            Please log in or register to use the application.
+          </p>
+        )}
       </header>
 
       {appError && (
@@ -123,34 +205,54 @@ function App() {
         </div>
       )}
 
-      {/* Main content area: Using grid for potentially more complex layouts later */}
-      <main className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start">
-        {/* Left column for Timer and Logger */}
-        <div className="space-y-8 md:space-y-10">
-          <StudyLogger 
-            activeSession={activeStudySession}
-            onSessionStart={(session, taskDesc) => {
-              handleStudySessionStart(session);
-              setTaskForNextSession(taskDesc); // Update App's knowledge of current task
-            }}
-            onSessionEnd={handleStudySessionEnd}
-            initialTaskDescription={taskForNextSession} // Allow App to suggest a task
-          />
-          <PomodoroTimer 
-            onWorkSessionStart={handlePomodoroWorkStart}
-            onWorkSessionComplete={handlePomodoroWorkComplete}
-            onTimerStop={handlePomodoroStop}
-            // Consider passing a prop to disable Pomodoro if activeStudySession is null and no taskForNextSession
-            // This would guide user to use StudyLogger first.
-            // canStartPomodoro={!!activeStudySession || !!taskForNextSession.trim()}
-          />
+      {!currentUser ? (
+        <div className="w-full max-w-sm p-6 bg-white dark:bg-gray-800 rounded-xl shadow-xl">
+          <h2 className="text-2xl font-semibold text-center text-gray-900 dark:text-gray-100 mb-6">
+            Login or Register
+          </h2>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+              <input type="text" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} required 
+                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-200"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+              <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} required 
+                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-200"/>
+            </div>
+            <div className="flex space-x-4">
+              <button type="submit" 
+                      className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Login
+              </button>
+              <button type="button" onClick={handleRegister}
+                      className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                Register
+              </button>
+            </div>
+          </form>
         </div>
-
-        {/* Right column for History */}
-        <div className="md:mt-0 w-full"> {/* mt-0 for md, defaults for mobile stack */}
-          <StudyHistory />
-        </div>
-      </main>
+      ) : (
+        <main className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start">
+          <div className="space-y-8 md:space-y-10">
+            <StudyLogger 
+              activeSession={activeStudySession}
+              onSessionStart={handleStudySessionStart}
+              onSessionEnd={handleStudySessionEnd}
+              initialTaskDescription={taskForNextSession}
+            />
+            <PomodoroTimer 
+              onWorkSessionStart={handlePomodoroWorkStart}
+              onWorkSessionComplete={handlePomodoroWorkComplete}
+              onTimerStop={handlePomodoroStop}
+            />
+          </div>
+          <div className="md:mt-0 w-full">
+            <StudyHistory />
+          </div>
+        </main>
+      )}
 
       <footer className="mt-12 md:mt-16 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 w-full">
         <p>Powered by Bun, Elysia, React, and Tailwind CSS.</p>

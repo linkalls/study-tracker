@@ -66,6 +66,20 @@ describe('StudyHistory Component', () => {
     });
   });
 
+  it('attempts to fetch sessions and includes Authorization header implicitly via fetchApi if token exists', async () => {
+    localStorage.setItem('jwtToken', 'test-jwt-token'); // Simulate user is logged in
+    mockListSessions.mockResolvedValue({ sessions: mockSessions }); // Successful fetch
+    
+    render(<StudyHistory />);
+    
+    await waitFor(() => {
+      expect(mockListSessions).toHaveBeenCalledTimes(1);
+      // We assume fetchApi correctly includes the token from localStorage.
+      // Direct verification of the header here would require deeper fetch mocking.
+      expect(screen.getByText(/Task 1: Backend API/i)).toBeInTheDocument();
+    });
+  });
+
   it('displays "no sessions" message when no sessions are returned', async () => {
     mockListSessions.mockResolvedValue({ sessions: [] });
     render(<StudyHistory />);

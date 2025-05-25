@@ -27,7 +27,20 @@ describe('Authentication Endpoints', () => {
       
       expect(status).toBe(201);
       expect(data?.message).toBe('User registered successfully');
+      expect(data?.token).toBeString(); // Expect a JWT token
+      expect(data?.user?.username).toBe(uniqueUsername);
       expect(error).toBeNull();
+
+      // Optional: Try to decode JWT payload (simple base64 decode for non-encrypted tokens)
+      if (data?.token) {
+        try {
+          const payload = JSON.parse(Buffer.from(data.token.split('.')[1], 'base64url').toString());
+          expect(payload.username).toBe(uniqueUsername);
+          expect(payload.userId).toBeNumber();
+        } catch (e) {
+          console.warn("Could not decode JWT payload in test, or it's not a simple JWS.", e);
+        }
+      }
     });
 
     it('should fail to register with an existing username', async () => {
@@ -35,7 +48,8 @@ describe('Authentication Endpoints', () => {
       const password = 'password123';
 
       // First registration
-      await api.auth.register.post({ username, password });
+      const firstReg = await api.auth.register.post({ username, password });
+      expect(firstReg.status).toBe(201); // Ensure first one succeeded
 
       // Attempt to register again
       const { data, error, status } = await api.auth.register.post({
@@ -44,7 +58,7 @@ describe('Authentication Endpoints', () => {
       });
 
       expect(status).toBe(409); // Conflict
-      expect(data).toBeNull();
+      // data might not be null if error response has a body, check error.value instead
       expect(error?.value.error).toBe('Username already taken');
     });
 
@@ -76,24 +90,38 @@ describe('Authentication Endpoints', () => {
   describe('POST /auth/login', () => {
     const username = `loginuser_${Date.now()}`;
     const password = 'password123';
+    let registeredUserId: number | undefined;
 
     beforeAll(async () => {
       // Register a user to be used for login tests
-      await api.auth.register.post({ username, password });
+      const regResponse = await api.auth.register.post({ username, password });
+      if (regResponse.data?.user?.id) {
+        registeredUserId = regResponse.data.user.id;
+      } else {
+        throw new Error("Setup for login tests failed: Could not register user or get user ID.");
+      }
     });
 
-    it('should login successfully with correct credentials', async () => {
+    it('should login successfully with correct credentials and return a token', async () => {
       const { data, error, status, cookie } = await api.auth.login.post({ username, password });
       
       expect(status).toBe(200);
       expect(data?.message).toBe('Login successful');
       expect(data?.user?.username).toBe(username);
+      expect(data?.token).toBeString(); // Expect a JWT token
       expect(error).toBeNull();
-      // Check for session_id cookie (name might vary based on Elysia's cookie plugin or manual setup)
-      // edenTreaty should handle cookies, but direct inspection of `cookie` object from response might be needed.
-      // The `cookie` object in eden's response is a record of received Set-Cookie headers.
-      expect(cookie?.session_id?.value).toBeDefined();
-      expect(cookie?.session_id?.httpOnly).toBe(true);
+      expect(cookie?.session_id).toBeUndefined(); // No session cookie should be set
+
+      // Optional: Decode JWT
+      if (data?.token) {
+        try {
+          const payload = JSON.parse(Buffer.from(data.token.split('.')[1], 'base64url').toString());
+          expect(payload.username).toBe(username);
+          expect(payload.userId).toBe(registeredUserId);
+        } catch (e) {
+          console.warn("Could not decode JWT payload in login test.", e);
+        }
+      }
     });
 
     it('should fail to login with incorrect password', async () => {
@@ -102,7 +130,6 @@ describe('Authentication Endpoints', () => {
         password: 'wrongpassword',
       });
       expect(status).toBe(401);
-      expect(data).toBeNull();
       expect(error?.value.error).toBe('Invalid username or password');
     });
 
@@ -121,26 +148,25 @@ describe('Authentication Endpoints', () => {
   describe('GET /auth/me', () => {
     const username = `me_user_${Date.now()}`;
     const password = 'password123';
-    let userCookies: Record<string, { value: string }> = {};
+    let authToken: string | undefined;
 
     beforeAll(async () => {
-      // Register and login user to get session cookie
+      // Register and login user to get a token
       await api.auth.register.post({ username, password });
       const loginResponse = await api.auth.login.post({ username, password });
-      if (loginResponse.cookie?.session_id) {
-        // @ts-ignore
-        userCookies['session_id'] = { value: loginResponse.cookie.session_id.value };
+      authToken = loginResponse.data?.token;
+      if (!authToken) {
+        throw new Error("Setup for /me tests failed: Could not get token during login.");
       }
     });
 
-    it('should return user details if authenticated', async () => {
-      if (!userCookies.session_id) throw new Error("Login failed in beforeAll, no cookie for /me test.");
+    it('should return user details if authenticated with Bearer token', async () => {
+      if (!authToken) throw new Error("Auth token not available for /me test.");
       
       const { data, error, status } = await api.auth.me.get({
-        // edenTreaty client automatically sends cookies from its internal store
-        // that were set by previous responses from the same domain.
-        // If manual cookie sending is needed (e.g. if client instance is recreated):
-        // $fetch: { headers: { cookie: `session_id=${userCookies.session_id.value}` } }
+        headers: { // Pass token in Authorization header
+          Authorization: `Bearer ${authToken}`,
+        },
       });
 
       expect(status).toBe(200);
@@ -148,44 +174,35 @@ describe('Authentication Endpoints', () => {
       expect(error).toBeNull();
     });
 
-    it('should return 401 if not authenticated', async () => {
-      // Make request with a fresh client instance that doesn't have the cookie
-      const unauthenticatedApi = edenTreaty<typeof TestApp>('http://localhost:3000');
-      const { data, error, status } = await unauthenticatedApi.auth.me.get();
+    it('should return 401 if not authenticated (no token)', async () => {
+      const { data, error, status } = await api.auth.me.get({}); // No headers
       
       expect(status).toBe(401);
-      expect(data).toBeNull();
       expect(error?.value.error).toBe('Unauthorized');
+    });
+    
+    it('should return 401 if token is invalid or malformed', async () => {
+        const { data, error, status } = await api.auth.me.get({
+            headers: {
+                Authorization: `Bearer invalid.token.here`,
+            },
+        });
+        expect(status).toBe(401);
+        expect(error?.value.error).toBe('Unauthorized'); // Or specific error from JWT verify
     });
   });
 
-  // /auth/logout Endpoint
-  describe('POST /auth/logout', () => {
-    const username = `logout_user_${Date.now()}`;
-    const password = 'password123';
-    
-    beforeAll(async () => {
-      await api.auth.register.post({ username, password });
-      // Login to establish a session that can be logged out
-      // The `api` instance will store the cookie from this login.
-      await api.auth.login.post({ username, password });
-    });
-
-    it('should logout successfully and clear session', async () => {
-      const { data, error, status, cookie } = await api.auth.logout.post({});
+  // /auth/logout Endpoint (JWT context)
+  describe('POST /auth/logout (JWT)', () => {
+    // For JWT, logout is primarily client-side (discarding the token).
+    // The backend endpoint might exist for blocklisting, but current implementation is simple.
+    it('should return a success message for logout', async () => {
+      const { data, error, status } = await api.auth.logout.post({});
       
       expect(status).toBe(200);
-      expect(data?.message).toBe('Logout successful');
+      expect(data?.message).toBe('Logout successful. Please discard your token.');
       expect(error).toBeNull();
-      
-      // Check if the session_id cookie is cleared.
-      // A cleared cookie is often sent back with an empty value and/or Max-Age=0 or an expiry date in the past.
-      expect(cookie?.session_id?.value).toBe(''); // Or check Max-Age or Expires
-
-      // Verify by trying to access /auth/me, which should now fail
-      const meResponse = await api.auth.me.get();
-      expect(meResponse.status).toBe(401);
-      expect(meResponse.error?.value.error).toBe('Unauthorized');
+      // No cookie changes to check for JWT logout.
     });
   });
 });

@@ -103,6 +103,8 @@ Alternatively, you can run the entire application using Docker Compose.
 
 ### User Authentication
 
+Authentication is token-based using JSON Web Tokens (JWT). Upon successful login or registration, a JWT is issued to the client, which then includes this token in the `Authorization` header for subsequent requests to protected resources.
+
 *   **Register:**
     1.  Navigate to the application. If there are explicit "Register" or "Sign Up" links/pages, use them. (Note: The current UI primarily focuses on the timer after login; direct registration/login forms might need to be added or accessed via API clients for initial setup if not present in UI).
     2.  To register via API (e.g., using an API tool like Postman or Insomnia): Send a `POST` request to `/auth/register` with a JSON body:

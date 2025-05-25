@@ -1,21 +1,40 @@
-// Extend Jest-DOM matchers for Vitest
-// https://testing-library.com/docs/react-testing-library/setup#vitest
-// https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom/vitest'; // Note: Use /vitest for Vitest v0.32.0+
-// If using an older version of Vitest or if the above doesn't work, you might need:
-// import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
+import { vi, beforeEach } from 'vitest';
 
-// Optional: Clear mocks between tests if needed, though Vitest does this by default for `vi.fn()`
-// import { vi } from 'vitest';
-// afterEach(() => {
+// Mock localStorage
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => {
+      store[key] = value.toString();
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+    key: (index: number) => Object.keys(store)[index] || null,
+    length: Object.keys(store).length,
+  };
+})();
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true, // Allow tests to spyOn or further modify if needed
+});
+
+// Clear localStorage before each test to ensure isolation
+beforeEach(() => {
+  localStorageMock.clear();
+});
+
+// Optional: Clear all mocks (vi.fn(), vi.spyOn) before each test
+// Vitest does this for vi.fn() by default if `clearMocks: true` is in config,
+// but explicit can be clearer or cover more cases.
+// beforeEach(() => {
 //   vi.clearAllMocks();
 // });
 
-// Optional: Global setup for MSW (Mock Service Worker) if you're using it for API mocking
-// import { server } from './mocks/server'; // Assuming your MSW server setup is in src/mocks/
-// beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-// afterAll(() => server.close());
-// afterEach(() => server.resetHandlers());
-
-// Any other global setup you need for your tests can go here.
-console.log('Vitest setup file loaded.');
+console.log('Vitest setup file loaded with localStorage mock.');
