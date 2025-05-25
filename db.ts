@@ -41,4 +41,30 @@ db.run(`
   )
 `);
 
+// Function to get user rankings
+export interface UserRanking {
+  username: string;
+  total_study_minutes: number;
+}
+
+export function getUserRankings(limit: number = 10): UserRanking[] {
+  const query = db.query(`
+    SELECT
+      u.username,
+      SUM(s.duration_minutes) AS total_study_minutes
+    FROM
+      users u
+    JOIN
+      study_sessions s ON u.id = s.user_id
+    WHERE
+      s.duration_minutes > 0 AND s.end_time IS NOT NULL -- Only count completed sessions with actual duration
+    GROUP BY
+      u.id, u.username
+    ORDER BY
+      total_study_minutes DESC
+    LIMIT ?
+  `);
+  return query.all(limit) as UserRanking[];
+}
+
 export default db;

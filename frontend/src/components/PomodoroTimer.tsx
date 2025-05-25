@@ -1,4 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Button } from "@/components/ui/button"; // Shadcn Button
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Shadcn Tabs
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Shadcn Popover
+import { Label } from "@/components/ui/label"; // Shadcn Label
+import { Input } from "@/components/ui/input"; // Shadcn Input
+import { Settings2 } from 'lucide-react'; // Icon for settings button
 
 // Default timer durations (in minutes)
 const DEFAULT_WORK_DURATION = 25;
@@ -8,16 +14,14 @@ const POMODOROS_BEFORE_LONG_BREAK = 4;
 
 type Mode = 'work' | 'shortBreak' | 'longBreak';
 
-// == Callbacks for App.tsx ==
-export interface PomodoroTimerProps { // Exporting for App.tsx
+export interface PomodoroTimerProps {
   onWorkSessionStart?: (startTime: Date) => void;
   onWorkSessionComplete?: () => void;
-  onTimerStop?: (currentTime: Date) => void; // Called on reset or manual stop during work
-  // activeStudySession: SessionData | null; // Added to potentially disable timer if no study session
+  onTimerStop?: (currentTime: Date) => void;
 }
 
 const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ onWorkSessionStart, onWorkSessionComplete, onTimerStop }) => {
-  const [workDuration, setWorkDuration] = useState(DEFAULT_WORK_DURATION * 60); // in seconds
+  const [workDuration, setWorkDuration] = useState(DEFAULT_WORK_DURATION * 60);
   const [shortBreakDuration, setShortBreakDuration] = useState(DEFAULT_SHORT_BREAK_DURATION * 60);
   const [longBreakDuration, setLongBreakDuration] = useState(DEFAULT_LONG_BREAK_DURATION * 60);
 
@@ -203,80 +207,79 @@ const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ onWorkSessionStart, onWor
     longBreak: 'Long Break',
   };
 
+  // Handler for mode change from Tabs component
+  const handleModeChange = (newMode: string) => {
+    const mode = newMode as Mode;
+    if (isRunning && currentMode === 'work' && mode !== 'work' && onTimerStop) {
+      onTimerStop(new Date());
+    }
+    switchToMode(mode);
+  };
+
   return (
-    <div className="p-5 sm:p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg space-y-6 text-gray-800 dark:text-gray-100">
-      {/* Mode Indicators (Tabs) */}
-      <div className="flex justify-center space-x-1 sm:space-x-2 bg-gray-100 dark:bg-gray-700 p-1.5 rounded-lg">
-        {(['work', 'shortBreak', 'longBreak'] as Mode[]).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => {
-              if (isRunning && currentMode === 'work' && mode !== 'work' && onTimerStop) onTimerStop(new Date());
-              switchToMode(mode);
-            }}
-            className={`px-3 sm:px-4 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-opacity-75
-              ${currentMode === mode 
-                ? (mode === 'work' ? 'bg-blue-600 text-white shadow-sm focus:ring-blue-500' 
-                  : (mode === 'shortBreak' ? 'bg-green-600 text-white shadow-sm focus:ring-green-500' 
-                    : 'bg-indigo-600 text-white shadow-sm focus:ring-indigo-500'))
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-gray-400'
-              }`
-            }
-          >
-            {modeDisplayNames[mode]}
-          </button>
-        ))}
-      </div>
+    <div className="p-5 sm:p-6 bg-card dark:bg-card rounded-xl shadow-lg space-y-6 text-card-foreground dark:text-card-foreground">
+      <Tabs value={currentMode} onValueChange={handleModeChange} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="work">Work</TabsTrigger>
+          <TabsTrigger value="shortBreak">Short Break</TabsTrigger>
+          <TabsTrigger value="longBreak">Long Break</TabsTrigger>
+        </TabsList>
+        {/* TabsContent is not strictly needed if timer display is outside and reacts to currentMode state */}
+      </Tabs>
       
-      {/* Timer Display */}
       <div className="text-center my-4">
-        {/* <h2 className="text-xl font-semibold mb-2">{modeDisplayNames[currentMode]}</h2> */} {/* Title is now part of tabs */}
-        <p className="text-6xl sm:text-7xl font-bold my-3 text-gray-900 dark:text-gray-50 tracking-tight">
+        <p className="text-6xl sm:text-7xl font-bold my-3 text-foreground dark:text-foreground tracking-tight">
           {formatTime(timeRemaining)}
         </p>
       </div>
 
-      {/* Control Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-        <button
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Button
           onClick={startTimer}
           disabled={isRunning}
-          className="col-span-2 sm:col-span-1 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 disabled:opacity-60 disabled:hover:bg-green-600 transition-all duration-150 ease-in-out"
+          variant="default" // Or specific color like "success" if defined
+          className="col-span-2 sm:col-span-1 bg-green-600 hover:bg-green-700 text-white" // Customizing for specific color
         >
           Start
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={pauseTimer}
           disabled={!isRunning}
-          className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-75 disabled:opacity-60 disabled:hover:bg-yellow-500 transition-all duration-150 ease-in-out"
+          variant="outline"
+          className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-white dark:border-yellow-400 dark:text-yellow-400 dark:hover:bg-yellow-500 dark:hover:text-gray-900"
         >
           Pause
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={resetTimer}
-          className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition-all duration-150 ease-in-out"
+          variant="destructive"
         >
           Reset
-        </button>
+        </Button>
       </div>
       
-      <div className="text-center text-sm text-gray-500 dark:text-gray-400 pt-2">
+      <div className="text-center text-sm text-muted-foreground dark:text-muted-foreground pt-2">
         Pomodoros completed this session: <span className="font-semibold">{pomodorosCompleted}</span>
       </div>
 
-      {/* Settings Section */}
-      <div className="pt-5 border-t border-gray-200 dark:border-gray-700">
-        <h3 className="text-lg font-semibold mb-3 text-center text-gray-800 dark:text-gray-200">Timer Settings</h3>
-        <div className="space-y-3 text-sm">
-          {(['work', 'shortBreak', 'longBreak'] as Mode[]).map((modeKey) => (
-            <div key={modeKey} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded-md">
-              <label htmlFor={`${modeKey}DurationInput`} className="text-gray-700 dark:text-gray-300">
-                {modeDisplayNames[modeKey]} Duration:
-              </label>
-              <div className="flex items-center">
-                <input 
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="w-full flex items-center justify-center gap-2">
+            <Settings2 className="h-4 w-4" /> Timer Settings
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 space-y-4 p-4 bg-background dark:bg-popover">
+          <h3 className="text-lg font-medium text-center text-popover-foreground dark:text-popover-foreground">Adjust Durations</h3>
+          <div className="space-y-3 text-sm">
+            {(['work', 'shortBreak', 'longBreak'] as Mode[]).map((modeKey) => (
+              <div key={modeKey} className="grid grid-cols-3 items-center gap-3">
+                <Label htmlFor={`${modeKey}DurationInput`} className="text-popover-foreground dark:text-popover-foreground col-span-1">
+                  {modeDisplayNames[modeKey]}:
+                </Label>
+                <Input 
                   id={`${modeKey}DurationInput`}
-                  type="number" 
+                  type="number"
+                  min="1"
                   value={
                     modeKey === 'work' ? workDuration / 60 :
                     modeKey === 'shortBreak' ? shortBreakDuration / 60 :
@@ -296,15 +299,13 @@ const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ onWorkSessionStart, onWor
                       if (currentMode === 'longBreak' && !isRunning) setTimeRemaining(newDurationSeconds);
                     }
                   }} 
-                  className="p-1.5 w-16 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none text-center"
-                  min="1"
-                /> 
-                <span className="ml-2 text-gray-600 dark:text-gray-400">min</span>
+                  className="col-span-2 p-1.5 w-full rounded border bg-input text-foreground focus:ring-1 focus:ring-ring"
+                />
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };

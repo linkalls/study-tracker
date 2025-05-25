@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler", // Or "Node" if preferred
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "noEmit": true, // Typically true for tsconfig.node.json if it's just for type checking Vite config
+  },
+  "include": ["vite.config.ts"] // Include other Node-specific TS files if any
+}

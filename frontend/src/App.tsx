@@ -1,24 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
-import PomodoroTimer, { PomodoroTimerProps } from './components/PomodoroTimer';
+import PomodoroTimer from './components/PomodoroTimer'; // PomodoroTimerProps is exported from PomodoroTimer.tsx
 import StudyLogger from './components/StudyLogger';
 import StudyHistory from './components/StudyHistory';
-// Updated imports for JWT auth
 import { 
   SessionData, 
   getActiveSession, 
   createSession, 
   updateSession,
-  getCurrentUser, // For auth check
-  loginUser,      // For dummy login/register UI
-  registerUser,   // For dummy login/register UI
-  logoutUser,     // For logout button
+  getCurrentUser,
+  loginUser,
+  registerUser,
+  logoutUser,
   User
 } from './services/sessionApi';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { UserCircle, LogOut } from 'lucide-react';
+import { Separator } from "@/components/ui/separator"; // Import Separator
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authChecked, setAuthChecked] = useState<boolean>(false); // To prevent rendering protected content before check
+  const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [activeStudySession, setActiveStudySession] = useState<SessionData | null>(null);
   const [appError, setAppError] = useState<string | null>(null);
   const [taskForNextSession, setTaskForNextSession] = useState<string>('');
@@ -175,82 +181,104 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-4 pt-6 md:pt-10 selection:bg-blue-600 selection:text-white">
-      <header className="mb-8 md:mb-10 text-center w-full">
-        <div className="flex justify-between items-center max-w-5xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl font-bold text-blue-600 dark:text-blue-400">FocusFlow</h1>
+    <div className="min-h-screen flex flex-col items-center p-4 pt-6 md:pt-10 selection:bg-primary/70 selection:text-primary-foreground">
+      <header className="mb-8 md:mb-10 w-full">
+        <div className="max-w-5xl mx-auto flex justify-between items-center">
+          <h1 className="text-4xl sm:text-5xl font-bold text-primary dark:text-primary">FocusFlow</h1>
           {currentUser && (
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-700 dark:text-gray-300">Hi, {currentUser.username}!</span>
-              <button 
-                onClick={handleLogout}
-                className="px-3 py-1.5 text-xs sm:text-sm bg-red-500 hover:bg-red-600 text-white rounded-md shadow-sm transition-colors"
-              >
-                Logout
-              </button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center space-x-2 p-2 rounded-full hover:bg-accent dark:hover:bg-accent/50">
+                  <UserCircle className="h-6 w-6 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground dark:text-foreground hidden sm:inline">{currentUser.username}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-48 bg-background dark:bg-popover mr-2">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive dark:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
-        {!currentUser && (
-           <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 mt-1.5">
+        {!currentUser && authChecked && (
+           <p className="text-base sm:text-lg text-muted-foreground dark:text-muted-foreground mt-1.5 text-center">
             Please log in or register to use the application.
           </p>
         )}
       </header>
 
       {appError && (
-        <div className="my-4 p-3 bg-red-100 dark:bg-red-800/50 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 rounded-lg shadow-md max-w-xl w-full mx-auto text-sm">
+        <div className="my-4 p-3 bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 dark:border-destructive/50 text-destructive dark:text-destructive-foreground rounded-lg shadow-md max-w-xl w-full mx-auto text-sm">
           <p className="font-semibold mb-1">Application Error:</p>
           <p>{appError}</p>
         </div>
       )}
 
-      {!currentUser ? (
-        <div className="w-full max-w-sm p-6 bg-white dark:bg-gray-800 rounded-xl shadow-xl">
-          <h2 className="text-2xl font-semibold text-center text-gray-900 dark:text-gray-100 mb-6">
-            Login or Register
-          </h2>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-              <input type="text" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} required 
-                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-200"/>
+      {!currentUser && authChecked ? (
+        <Card className="w-full max-w-sm bg-card dark:bg-card text-card-foreground dark:text-card-foreground">
+          <CardHeader>
+            <CardTitle className="text-2xl font-semibold text-center">
+              Login or Register
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="username">Username</Label>
+                <Input id="username" type="text" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} required 
+                       placeholder="Enter your username"
+                       className="bg-input dark:bg-input text-foreground dark:text-foreground"/>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} required 
+                       placeholder="Enter your password"
+                       className="bg-input dark:bg-input text-foreground dark:text-foreground"/>
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                  Login
+                </Button>
+                <Button type="button" onClick={handleRegister} variant="outline" className="w-full">
+                  Register
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : currentUser && authChecked ? ( 
+        <main className="w-full max-w-5xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start">
+            {/* Left column for Timer and Logger */}
+            <div className="space-y-8 md:space-y-10">
+              <StudyLogger 
+                activeSession={activeStudySession}
+                onSessionStart={handleStudySessionStart}
+                onSessionEnd={handleStudySessionEnd}
+                initialTaskDescription={taskForNextSession}
+              />
+              <PomodoroTimer 
+                onWorkSessionStart={handlePomodoroWorkStart}
+                onWorkSessionComplete={handlePomodoroWorkComplete}
+                onTimerStop={handlePomodoroStop}
+              />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-              <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} required 
-                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-200"/>
+
+            {/* Right column for History */}
+            <div className="md:mt-0 w-full h-full"> {/* Ensure StudyHistory can take full height */}
+              <StudyHistory />
             </div>
-            <div className="flex space-x-4">
-              <button type="submit" 
-                      className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                Login
-              </button>
-              <button type="button" onClick={handleRegister}
-                      className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                Register
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : (
-        <main className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start">
-          <div className="space-y-8 md:space-y-10">
-            <StudyLogger 
-              activeSession={activeStudySession}
-              onSessionStart={handleStudySessionStart}
-              onSessionEnd={handleStudySessionEnd}
-              initialTaskDescription={taskForNextSession}
-            />
-            <PomodoroTimer 
-              onWorkSessionStart={handlePomodoroWorkStart}
-              onWorkSessionComplete={handlePomodoroWorkComplete}
-              onTimerStop={handlePomodoroStop}
-            />
           </div>
-          <div className="md:mt-0 w-full">
-            <StudyHistory />
-          </div>
+          
+          {/* Separator can be used if there are sections below the main grid, or between app sections if layout was different */}
+          {/* Example: If there was another section below */}
+          {/* <Separator className="my-8 md:my-12" /> */}
+          {/* <AnotherSection /> */}
+
         </main>
       )}
 

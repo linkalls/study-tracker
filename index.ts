@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { jwt } from '@elysiajs/jwt'; // Assume this would be installed
-import db from './db'; 
+import db, { getUserRankings } from './db'; // Import getUserRankings
 
 const JWT_SECRET = process.env.JWT_SECRET || 'MY_SUPER_SECRET_JWT_KEY_12345!';
 
@@ -280,6 +280,20 @@ const app = new Elysia()
     console.error(error);
     set.status = 500;
     return { error: 'Internal Server Error' };
+  })
+  // Public endpoint for rankings
+  .get('/api/rankings', () => {
+    try {
+      const rankings = getUserRankings(); // Uses default limit of 10
+      return { rankings };
+    } catch (e: any) {
+      console.error("Failed to retrieve rankings:", e.message);
+      // set.status = 500; // This 'set' is not available here, error handling might need adjustment for root level routes
+      // For now, Elysia will likely catch and return a 500 if error is thrown.
+      // To explicitly set status, this might need to be in a group or have 'set' passed if Elysia supports it for root.
+      // Or, rely on global onError. For simplicity, let's rely on global onError or default Elysia error handling.
+      throw new Error("Failed to retrieve rankings"); // This will be caught by onError or default handler
+    }
   })
   .get("/", () => "Hello Elysia")
 

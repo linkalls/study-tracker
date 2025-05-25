@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { SessionData, getActiveSession, createSession, updateSession } from '../services/sessionApi';
+import { SessionData, createSession, updateSession } from '../services/sessionApi'; // Removed getActiveSession as App.tsx handles it
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // For better structure
 
 interface StudyLoggerProps {
   activeSession: SessionData | null;
-  onSessionStart: (session: SessionData, taskDescription: string) => void; // Pass task description up
+  onSessionStart: (session: SessionData, taskDescription: string) => void;
   onSessionEnd: (session: SessionData | null) => void;
-  initialTaskDescription?: string; // Allow App to set initial task, e.g., from a previous unfinished session
+  initialTaskDescription?: string;
 }
 
 const StudyLogger: React.FC<StudyLoggerProps> = ({ activeSession, onSessionStart, onSessionEnd, initialTaskDescription }) => {
@@ -75,61 +79,67 @@ const StudyLogger: React.FC<StudyLoggerProps> = ({ activeSession, onSessionStart
   };
 
   return (
-    <div className="p-5 bg-white dark:bg-gray-800 rounded-xl shadow-lg space-y-4">
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center">
-        {activeSession ? 'Active Study Session' : 'Start a New Session'}
-      </h3>
-      
-      {error && (
-        <div className="p-3 bg-red-100 dark:bg-red-800/50 border border-red-300 dark:border-red-600 rounded-md text-sm">
-          <p className="text-red-700 dark:text-red-200 font-medium">Error:</p>
-          <p className="text-red-600 dark:text-red-300">{error}</p>
-        </div>
-      )}
-      
-      {activeSession ? (
-        <div className="space-y-3 pt-2">
-          <p className="text-gray-700 dark:text-gray-300">
-            <strong>Task:</strong> <span className="font-normal">{activeSession.task_description || 'Not specified'}</span>
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            <strong>Started:</strong> <span className="font-normal">{new Date(activeSession.start_time).toLocaleTimeString()}</span>
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            <strong>Pomodoros:</strong> <span className="font-normal">{activeSession.pomodoro_cycles || 0}</span>
-          </p>
-          <button
-            onClick={handleEndSession}
-            disabled={isLoading}
-            className="w-full mt-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 disabled:opacity-60 transition-all duration-150 ease-in-out"
-          >
-            {isLoading ? 'Ending...' : 'End Current Session'}
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <label htmlFor="taskDescriptionInput" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Task for this session:
-          </label>
-          <input
-            id="taskDescriptionInput"
-            type="text"
-            value={taskDescription}
-            onChange={(e) => setTaskDescription(e.target.value)}
-            placeholder="e.g., Chapter 3 review, Project X coding"
-            className="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-colors"
-            disabled={isLoading}
-          />
-          <button
-            onClick={handleStartSession}
-            disabled={isLoading}
-            className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 disabled:opacity-60 transition-all duration-150 ease-in-out"
-          >
-            {isLoading ? 'Starting...' : 'Start New Session'}
-          </button>
-        </div>
-      )}
-    </div>
+    <Card className="w-full bg-card dark:bg-card text-card-foreground dark:text-card-foreground">
+      <CardHeader>
+        <CardTitle className="text-center text-xl">
+          {activeSession ? 'Active Study Session' : 'Start a New Session'}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && (
+          <div className="p-3 bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 dark:border-destructive/50 rounded-md text-sm">
+            <p className="text-destructive dark:text-destructive-foreground font-medium">Error:</p>
+            <p className="text-destructive/90 dark:text-destructive-foreground/90">{error}</p>
+          </div>
+        )}
+        
+        {activeSession ? (
+          <div className="space-y-3 pt-1">
+            <p className="text-sm">
+              <span className="font-semibold text-muted-foreground">Task:</span> {activeSession.task_description || 'Not specified'}
+            </p>
+            <p className="text-sm">
+              <span className="font-semibold text-muted-foreground">Started:</span> {new Date(activeSession.start_time).toLocaleTimeString()}
+            </p>
+            <p className="text-sm">
+              <span className="font-semibold text-muted-foreground">Pomodoros:</span> {activeSession.pomodoro_cycles || 0}
+            </p>
+            <Button
+              onClick={handleEndSession}
+              disabled={isLoading}
+              variant="destructive"
+              className="w-full mt-3"
+            >
+              {isLoading ? 'Ending...' : 'End Current Session'}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="taskDescriptionInput" className="text-muted-foreground">
+                Task for this session:
+              </Label>
+              <Input
+                id="taskDescriptionInput"
+                type="text"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                placeholder="e.g., Chapter 3 review, Project X coding"
+                disabled={isLoading}
+                className="bg-input dark:bg-input text-foreground dark:text-foreground"
+              />
+            </div>
+            <Button
+              onClick={handleStartSession}
+              disabled={isLoading}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isLoading ? 'Starting...' : 'Start New Session'}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
