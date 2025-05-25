@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Node modules
+node_modules
+
+# Bun install cache / temp files (if bun is used locally for dev)
+.bun
+fetch.json
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist
+build
+coverage
+
+# Docker specific (if any local Dockerfiles in frontend, though the main one is being created)
+# Dockerfile # This .dockerignore is for the context *sent* to Docker, so Dockerfile itself is fine
+
+# Env files if they contain secrets and are not meant for image
+.env
+.env.*
+!/.env.example # Keep example env files if they exist
+
+# Other temporary files or logs
+*.log
+temp/

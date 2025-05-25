@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Node modules
+node_modules
+frontend/node_modules
+
+# Bun install cache / temp files
+.bun
+fetch.json
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Test files / DB if not needed in final image (though db.sqlite is requested)
+# test_db.sqlite # Keep if you want to exclude the test DB from the main image
+# *.test.ts # Exclude test files from production image
+
+# Frontend build artifacts if frontend is built separately and served by a different container
+frontend/dist
+
+# Docker specific
+Dockerfile
+.dockerignore
+
+# Coverage reports
+coverage
+frontend/coverage
+
+# Other temporary files or logs
+*.log
+temp/
+install.sh

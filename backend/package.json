@@ -1,0 +1,21 @@
+{
+  "name": "study-app-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run index.ts",
+    "test": "bun test",
+    "db:generate": "drizzle-kit generate:sqlite",
+    "db:migrate": "drizzle-kit migrate:sqlite",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "elysia": "^0.8.17",
+    "@elysiajs/jwt": "^0.8.0",
+    "drizzle-orm": "^0.29.4"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "drizzle-kit": "^0.20.14"
+  }
+}

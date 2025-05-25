@@ -1,0 +1,10 @@
+{
+  "name": "study-pomodoro-app-monorepo",
+  "version": "1.0.0",
+  "private": true, 
+  "description": "Main project root for study pomodoro app (backend and frontend).",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
+}
