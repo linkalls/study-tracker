@@ -3,18 +3,17 @@ version: '3.8'
 services:
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ./backend # Updated context to point to the backend directory
+      dockerfile: Dockerfile # This will now look for Dockerfile inside ./backend
     ports:
       - "3001:3000" # Host:Container
     volumes:
-      # Mount the local SQLite database file into the container at the path expected by the application.
-      # The backend Dockerfile sets WORKDIR /app, and db.ts uses 'db.sqlite' or 'test_db.sqlite'.
-      # For production-like compose, we map to 'db.sqlite'.
-      - ./db.sqlite:/app/db.sqlite 
+      # Mount the local SQLite database file (expected to be in backend/) into the container.
+      # The backend Dockerfile's WORKDIR is /app, and db.ts will use './db.sqlite' relative to that.
+      - ./backend/db.sqlite:/app/db.sqlite 
     environment:
-      # NODE_ENV is already set to 'production' in the backend Dockerfile.
-      # If other environment variables were needed, they would go here.
+      # NODE_ENV is set to 'production' in the backend Dockerfile.
+      # Can also be set here to override or ensure.
       # Example: DATABASE_URL: sqlite:/app/db.sqlite (if app used this)
       - NODE_ENV=production # Explicitly set here as well for clarity, though Dockerfile also sets it.
     restart: unless-stopped
