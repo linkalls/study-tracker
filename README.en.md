@@ -60,6 +60,45 @@ Follow these instructions to get the FocusFlow application running on your local
     ```
     The frontend development server (Vite) will usually start on `http://localhost:5173` (or the next available port). Open this URL in your browser to use the application.
 
+### Running with Docker Compose
+
+Alternatively, you can run the entire application using Docker Compose.
+
+**Prerequisites:**
+
+*   **Docker:** Ensure Docker is installed. ([Get Docker](https://www.docker.com/get-started))
+*   **Docker Compose:** Ensure Docker Compose is installed (usually included with Docker Desktop).
+
+**Commands:**
+
+1.  **Build and Start Services:**
+    From the project **root directory** (where `docker-compose.yml` is located):
+    ```bash
+    docker-compose up --build -d
+    ```
+    The `-d` flag runs the containers in detached mode (in the background).
+
+2.  **Accessing the Application:**
+    *   **Frontend:** Open your browser and navigate to `http://localhost:8080`.
+    *   **Backend API:** The API will be accessible at `http://localhost:3001`.
+
+3.  **Viewing Logs:**
+    To view the logs for a specific service:
+    ```bash
+    docker-compose logs -f backend
+    ```
+    Or for the frontend:
+    ```bash
+    docker-compose logs -f frontend
+    ```
+    The `-f` flag follows the log output.
+
+4.  **Stopping Services:**
+    To stop and remove the containers:
+    ```bash
+    docker-compose down
+    ```
+
 ## 3. Features and Usage
 
 ### User Authentication

@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000" # Host:Container
+    volumes:
+      # Mount the local SQLite database file into the container at the path expected by the application.
+      # The backend Dockerfile sets WORKDIR /app, and db.ts uses 'db.sqlite' or 'test_db.sqlite'.
+      # For production-like compose, we map to 'db.sqlite'.
+      - ./db.sqlite:/app/db.sqlite 
+    environment:
+      # NODE_ENV is already set to 'production' in the backend Dockerfile.
+      # If other environment variables were needed, they would go here.
+      # Example: DATABASE_URL: sqlite:/app/db.sqlite (if app used this)
+      - NODE_ENV=production # Explicitly set here as well for clarity, though Dockerfile also sets it.
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80" # Host:Container (Nginx default port is 80)
+    restart: unless-stopped
+    # depends_on:
+    #   - backend # Uncomment if you want frontend to wait for backend to start
+                  # This doesn't mean backend is "ready", just that the service started.
+                  # For true readiness, health checks would be needed.
+
+# Top-level volumes are not strictly necessary for this setup as we are using a direct bind mount
+# for db.sqlite for simplicity. If a named volume (e.g., for more complex data or to let Docker manage
+# the storage location) was preferred for the database, it would be defined here like:
+# volumes:
+#   database_data:
+# And then used in the backend service:
+# volumes:
+#   - database_data:/app/db # if db.sqlite was in /app/db/
+# For a single file like SQLite, a direct bind mount is often more straightforward.
+# Ensure db.sqlite exists in the root of your project or is created by the application on first run.
+# The backend Dockerfile and db.ts are set up to create db.sqlite if it doesn't exist.
+# A bind mount will persist this created file on the host.
